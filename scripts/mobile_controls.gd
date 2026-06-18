@@ -43,8 +43,8 @@ func _add_turn_button(node_name: String, text: String, pos: Vector2, direction: 
 	button.offset_top = pos.y
 	button.offset_right = pos.x + 120
 	button.offset_bottom = pos.y + 64
-	button.button_down.connect(func(): turn_value = direction)
-	button.button_up.connect(func(): turn_value = 0.0)
+	button.button_down.connect(func(): _set_turn(direction))
+	button.button_up.connect(func(): _set_turn(0.0))
 	add_child(button)
 
 func _add_action_button(node_name: String, text: String, pos: Vector2, method_name: StringName) -> void:
@@ -74,6 +74,9 @@ func _process(_delta: float) -> void:
 func _set_move(direction: Vector2) -> void:
 	move_value = direction
 	_call_player("set_mobile_move", move_value)
+
+func _set_turn(direction: float) -> void:
+	turn_value = direction
 
 func _call_player(method_name: StringName, value = null) -> void:
 	if player == null or not player.has_method(method_name):
