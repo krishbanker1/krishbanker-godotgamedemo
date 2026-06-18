@@ -17,7 +17,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_update_day_night(delta)
-	_spawn_timer -= delta
+	spawn_timer -= delta
 	if spawn_timer <= 0.0:
 		spawn_timer = 7.0
 		_try_spawn_mob()
