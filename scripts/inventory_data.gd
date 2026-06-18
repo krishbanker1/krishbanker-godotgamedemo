@@ -1,18 +1,16 @@
 extends RefCounted
 class_name InventoryData
 
-const MAX_DISPLAY_ITEMS := 7
+const MAX_DISPLAY_ITEMS := 10
 
 var items: Dictionary = {}
 
 func add_item(item_id: String, amount: int = 1) -> int:
 	if item_id == "" or amount <= 0:
 		return 0
-	var limit := GameRegistry.item_stack_limit(item_id)
 	var current := get_count(item_id)
-	var new_total := current + amount
-	items[item_id] = new_total
-	return min(amount, max(0, limit * 99 - current))
+	items[item_id] = current + amount
+	return amount
 
 func remove_item(item_id: String, amount: int = 1) -> bool:
 	if amount <= 0:
@@ -53,6 +51,12 @@ func first_available_from(list: Array) -> String:
 			return str(item_id)
 	return ""
 
+func all_item_ids() -> Array[String]:
+	var output: Array[String] = []
+	for key in items.keys():
+		output.append(str(key))
+	return output
+
 func summary(max_items: int = MAX_DISPLAY_ITEMS) -> String:
 	if items.is_empty():
 		return "Inventory empty"
@@ -66,3 +70,16 @@ func summary(max_items: int = MAX_DISPLAY_ITEMS) -> String:
 	if items.size() > max_items:
 		parts.append("+%s more" % [items.size() - max_items])
 	return ", ".join(parts)
+
+func to_dictionary() -> Dictionary:
+	var copy := {}
+	for item_id in items.keys():
+		copy[str(item_id)] = int(items[item_id])
+	return copy
+
+func from_dictionary(data: Dictionary) -> void:
+	items.clear()
+	for item_id in data.keys():
+		var amount := int(data[item_id])
+		if amount > 0:
+			items[str(item_id)] = amount
