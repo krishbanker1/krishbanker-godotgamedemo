@@ -14,7 +14,7 @@ var crafting_panel: Panel
 var crafting_grid: GridContainer
 var smelting_panel: Panel
 var smelting_grid: GridContainer
-var toast_time := 0.0
+var toast_time: float = 0.0
 
 func _ready() -> void:
 	_build_ui()
@@ -39,7 +39,7 @@ func _build_ui() -> void:
 	_build_smelting_panel()
 
 func _style_panel(panel: Panel, bg: Color, border: Color = Color(1, 1, 1, 0.16), radius: int = 10) -> void:
-	var style := StyleBoxFlat.new()
+	var style: StyleBoxFlat = StyleBoxFlat.new()
 	style.bg_color = bg
 	style.border_color = border
 	style.border_width_left = 2
@@ -53,7 +53,7 @@ func _style_panel(panel: Panel, bg: Color, border: Color = Color(1, 1, 1, 0.16),
 	panel.add_theme_stylebox_override("panel", style)
 
 func _style_button(button: Button, bg: Color = Color(0.07, 0.08, 0.09, 0.74)) -> void:
-	var normal := StyleBoxFlat.new()
+	var normal: StyleBoxFlat = StyleBoxFlat.new()
 	normal.bg_color = bg
 	normal.border_color = Color(1, 1, 1, 0.18)
 	normal.border_width_left = 2
@@ -64,7 +64,7 @@ func _style_button(button: Button, bg: Color = Color(0.07, 0.08, 0.09, 0.74)) ->
 	normal.corner_radius_top_right = 8
 	normal.corner_radius_bottom_left = 8
 	normal.corner_radius_bottom_right = 8
-	var pressed := normal.duplicate()
+	var pressed: StyleBoxFlat = normal.duplicate() as StyleBoxFlat
 	pressed.bg_color = Color(0.18, 0.20, 0.22, 0.92)
 	button.add_theme_stylebox_override("normal", normal)
 	button.add_theme_stylebox_override("pressed", pressed)
@@ -80,7 +80,7 @@ func _build_top_status() -> void:
 	top_panel.anchor_bottom = 0.0
 	top_panel.offset_left = 16
 	top_panel.offset_top = 14
-	top_panel.offset_right = 520
+	top_panel.offset_right = 560
 	top_panel.offset_bottom = 96
 	_style_panel(top_panel, Color(0.02, 0.025, 0.03, 0.58))
 	root.add_child(top_panel)
@@ -88,7 +88,7 @@ func _build_top_status() -> void:
 	bars_label = Label.new()
 	bars_label.offset_left = 16
 	bars_label.offset_top = 8
-	bars_label.offset_right = 490
+	bars_label.offset_right = 530
 	bars_label.offset_bottom = 34
 	bars_label.text = "Health 100 | Stamina 100 | Hunger 100"
 	top_panel.add_child(bars_label)
@@ -96,7 +96,7 @@ func _build_top_status() -> void:
 	status_label = Label.new()
 	status_label.offset_left = 16
 	status_label.offset_top = 36
-	status_label.offset_right = 490
+	status_label.offset_right = 530
 	status_label.offset_bottom = 74
 	status_label.text = "Selected: Empty"
 	top_panel.add_child(status_label)
@@ -115,11 +115,11 @@ func _build_hotbar() -> void:
 	hotbar_panel.add_theme_constant_override("separation", 8)
 	root.add_child(hotbar_panel)
 
-	for i in range(9):
-		var slot := Panel.new()
+	for i: int in range(9):
+		var slot: Panel = Panel.new()
 		slot.custom_minimum_size = Vector2(72, 68)
 		_style_panel(slot, Color(0.02, 0.02, 0.025, 0.72), Color(1, 1, 1, 0.20), 8)
-		var item_label := Label.new()
+		var item_label: Label = Label.new()
 		item_label.name = "ItemLabel"
 		item_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		item_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -182,7 +182,7 @@ func _build_smelting_panel() -> void:
 	smelting_panel.visible = false
 
 func _make_window(title: String, pos: Vector2, size: Vector2, from_right: bool = false) -> Panel:
-	var panel := Panel.new()
+	var panel: Panel = Panel.new()
 	panel.name = title
 	if from_right:
 		panel.anchor_left = 1.0
@@ -199,7 +199,7 @@ func _make_window(title: String, pos: Vector2, size: Vector2, from_right: bool =
 	_style_panel(panel, Color(0.025, 0.028, 0.035, 0.92), Color(1, 1, 1, 0.25), 12)
 	root.add_child(panel)
 
-	var label := Label.new()
+	var label: Label = Label.new()
 	label.text = title
 	label.offset_left = 18
 	label.offset_top = 14
@@ -208,26 +208,26 @@ func _make_window(title: String, pos: Vector2, size: Vector2, from_right: bool =
 	label.add_theme_color_override("font_color", Color(1.0, 0.91, 0.55))
 	panel.add_child(label)
 
-	var close := Button.new()
+	var close: Button = Button.new()
 	close.text = "X"
 	close.offset_left = size.x - 48
 	close.offset_top = 10
 	close.offset_right = size.x - 14
 	close.offset_bottom = 44
 	_style_button(close)
-	close.pressed.connect(func(): panel.visible = false)
+	close.pressed.connect(func() -> void: panel.visible = false)
 	panel.add_child(close)
 	return panel
 
 func update_all(player: Node) -> void:
 	if player == null:
 		return
-	var hp := int(player.health)
-	var st := int(player.stamina)
-	var hu := int(player.hunger)
-	var time_pct := int(player.world_time * 100.0)
+	var hp: int = int(player.health)
+	var st: int = int(player.stamina)
+	var hu: int = int(player.hunger)
+	var time_pct: int = int(player.world_time * 100.0)
 	bars_label.text = "HP %s/%s   STA %s   HUNGER %s   DAY %s%%" % [hp, player.max_health, st, hu, time_pct]
-	var selected := player.get_selected_item()
+	var selected: String = str(player.get_selected_item())
 	status_label.text = "Selected: %s   |   %s" % [GameRegistry.item_name(selected), _compact_inventory(player.inventory)]
 	_update_hotbar(player)
 	if inventory_panel.visible:
@@ -238,29 +238,33 @@ func update_all(player: Node) -> void:
 		_populate_smelting(player)
 
 func _update_hotbar(player: Node) -> void:
-	for i in range(hotbar_slots.size()):
+	for i: int in range(hotbar_slots.size()):
 		var slot: Panel = hotbar_slots[i]
-		var item_id := str(player.hotbar[i]) if i < player.hotbar.size() else ""
+		var item_id: String = ""
+		if i < player.hotbar.size():
+			item_id = str(player.hotbar[i])
 		var label: Label = slot.get_node("ItemLabel") as Label
-		var count := player.inventory.get_count(item_id) if item_id != "" else 0
+		var count: int = 0
+		if item_id != "":
+			count = int(player.inventory.get_count(item_id))
 		label.text = "%s\n%s\nx%s" % [i + 1, _short_name(item_id), count]
-		var border := Color(1, 1, 1, 0.2)
-		if i == player.selected_hotbar:
+		var border: Color = Color(1, 1, 1, 0.2)
+		if i == int(player.selected_hotbar):
 			border = Color(1.0, 0.82, 0.25, 0.95)
 		_style_panel(slot, Color(0.02, 0.02, 0.025, 0.76), border, 8)
 
 func _short_name(item_id: String) -> String:
 	if item_id == "":
 		return "Empty"
-	var name := GameRegistry.item_name(item_id)
-	if name.length() > 10:
-		return name.substr(0, 10)
-	return name
+	var item_name_text: String = GameRegistry.item_name(item_id)
+	if item_name_text.length() > 10:
+		return item_name_text.substr(0, 10)
+	return item_name_text
 
 func _compact_inventory(inv: InventoryData) -> String:
-	var ids := inv.all_item_ids()
+	var ids: Array[String] = inv.all_item_ids()
 	var parts: Array[String] = []
-	for i in range(min(4, ids.size())):
+	for i: int in range(min(4, ids.size())):
 		parts.append("%s x%s" % [_short_name(ids[i]), inv.get_count(ids[i])])
 	if ids.size() > 4:
 		parts.append("+%s" % [ids.size() - 4])
@@ -288,39 +292,45 @@ func toggle_smelting(player: Node) -> void:
 		_populate_smelting(player)
 
 func _clear_grid(grid: GridContainer) -> void:
-	for child in grid.get_children():
+	for child: Node in grid.get_children():
 		child.queue_free()
 
 func _populate_inventory(player: Node) -> void:
 	_clear_grid(inventory_grid)
-	for item_id in player.inventory.all_item_ids():
-		var label := Label.new()
+	var ids: Array[String] = player.inventory.all_item_ids()
+	for item_id: String in ids:
+		var label: Label = Label.new()
 		label.text = "%s\nx%s" % [GameRegistry.item_name(item_id), player.inventory.get_count(item_id)]
 		label.custom_minimum_size = Vector2(180, 54)
 		inventory_grid.add_child(label)
 
 func _populate_crafting(player: Node) -> void:
 	_clear_grid(crafting_grid)
-	for recipe_id in GameRegistry.recipe_ids():
-		var recipe := GameRegistry.get_recipe(recipe_id)
-		var button := Button.new()
+	var recipe_ids: Array[String] = GameRegistry.recipe_ids()
+	for recipe_id: String in recipe_ids:
+		var recipe: Dictionary = GameRegistry.get_recipe(recipe_id)
+		var button: Button = Button.new()
 		button.text = "%s  |  %s" % [recipe.get("name", recipe_id), _cost_text(recipe.get("cost", {}))]
 		button.custom_minimum_size = Vector2(380, 44)
 		_style_button(button)
 		button.disabled = not player.inventory.has_items(recipe.get("cost", {}))
-		button.pressed.connect(func(rid = recipe_id): player.craft_recipe(rid))
+		var rid: String = recipe_id
+		button.pressed.connect(func() -> void: player.craft_recipe(rid))
 		crafting_grid.add_child(button)
 
 func _populate_smelting(player: Node) -> void:
 	_clear_grid(smelting_grid)
-	for item_id in GameRegistry.smelting_ids():
-		var smelt := GameRegistry.get_smelting(item_id)
-		var button := Button.new()
-		button.text = "%s + %s" % [GameRegistry.item_name(item_id), GameRegistry.item_name(str(smelt.get("fuel", "charshard")))]
+	var item_ids: Array[String] = GameRegistry.smelting_ids()
+	for item_id: String in item_ids:
+		var smelt: Dictionary = GameRegistry.get_smelting(item_id)
+		var fuel_id: String = str(smelt.get("fuel", "charshard"))
+		var button: Button = Button.new()
+		button.text = "%s + %s" % [GameRegistry.item_name(item_id), GameRegistry.item_name(fuel_id)]
 		button.custom_minimum_size = Vector2(380, 44)
 		_style_button(button)
-		button.disabled = not player.inventory.has_item(item_id, 1) or not player.inventory.has_item(str(smelt.get("fuel", "charshard")), 1)
-		button.pressed.connect(func(id = item_id): player.smelt_item(id))
+		button.disabled = not player.inventory.has_item(item_id, 1) or not player.inventory.has_item(fuel_id, 1)
+		var sid: String = item_id
+		button.pressed.connect(func() -> void: player.smelt_item(sid))
 		smelting_grid.add_child(button)
 
 func _cost_text(cost: Dictionary) -> String:
