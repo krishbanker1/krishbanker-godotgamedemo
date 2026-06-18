@@ -2,20 +2,35 @@ extends Node3D
 class_name VoxelWorld
 
 const BLOCK_SIZE := 1.0
-const WORLD_X := 42
-const WORLD_Z := 42
+const CHUNK_SIZE := 8
 const MAX_HEIGHT := 10
 const WORLD_FLOOR := 0
+const LOAD_RADIUS_CHUNKS := 3
+const UNLOAD_RADIUS_CHUNKS := 4
+const CHUNK_CHECK_INTERVAL := 0.5
 
 var blocks: Dictionary = {}
 var block_ids: Dictionary = {}
 var materials: Dictionary = {}
 var height_map: Dictionary = {}
 
+var loaded_chunks: Dictionary = {}
+var chunk_nodes: Dictionary = {}
+var player_ref: Node3D = null
+var chunk_check_timer := 0.0
+var current_center_chunk := Vector2i(999999, 999999)
+
 func _ready() -> void:
 	add_to_group("voxel_world")
 	_create_materials()
-	_generate_world()
+	player_ref = get_node_or_null("../Player") as Node3D
+	_update_chunks(true)
+
+func _process(delta: float) -> void:
+	chunk_check_timer -= delta
+	if chunk_check_timer <= 0.0:
+		chunk_check_timer = CHUNK_CHECK_INTERVAL
+		_update_chunks(false)
 
 func _create_materials() -> void:
 	for block_id in GameRegistry.BLOCKS.keys():
@@ -29,17 +44,72 @@ func _make_material(color: Color) -> StandardMaterial3D:
 	material.roughness = 0.9
 	return material
 
-func _generate_world() -> void:
-	for x in range(WORLD_X):
-		for z in range(WORLD_Z):
+func _player_chunk_coord() -> Vector2i:
+	if player_ref == null:
+		return Vector2i.ZERO
+	var bx := floori(player_ref.global_position.x / BLOCK_SIZE)
+	var bz := floori(player_ref.global_position.z / BLOCK_SIZE)
+	return Vector2i(floori(float(bx) / float(CHUNK_SIZE)), floori(float(bz) / float(CHUNK_SIZE)))
+
+func _update_chunks(force: bool) -> void:
+	if player_ref == null:
+		player_ref = get_node_or_null("../Player") as Node3D
+	var center := _player_chunk_coord()
+	if not force and center == current_center_chunk:
+		return
+	current_center_chunk = center
+
+	for cx in range(center.x - LOAD_RADIUS_CHUNKS, center.x + LOAD_RADIUS_CHUNKS + 1):
+		for cz in range(center.y - LOAD_RADIUS_CHUNKS, center.y + LOAD_RADIUS_CHUNKS + 1):
+			var coord := Vector2i(cx, cz)
+			if not loaded_chunks.has(coord):
+				_generate_chunk(coord)
+
+	var to_unload: Array[Vector2i] = []
+	for coord in loaded_chunks.keys():
+		var dist := max(abs(coord.x - center.x), abs(coord.y - center.y))
+		if dist > UNLOAD_RADIUS_CHUNKS:
+			to_unload.append(coord)
+	for coord in to_unload:
+		_unload_chunk(coord)
+
+func _generate_chunk(coord: Vector2i) -> void:
+	loaded_chunks[coord] = true
+	var block_list: Array[Vector3i] = []
+	var origin_x := coord.x * CHUNK_SIZE
+	var origin_z := coord.y * CHUNK_SIZE
+
+	for lx in range(CHUNK_SIZE):
+		for lz in range(CHUNK_SIZE):
+			var x := origin_x + lx
+			var z := origin_z + lz
 			var biome_id := GameRegistry.biome_at(x, z)
 			var height := _height_for_column(x, z, biome_id)
 			height_map[Vector2i(x, z)] = height
 			for y in range(height):
-				set_block(Vector3i(x, y, z), _block_for_depth(x, y, z, height, biome_id))
-	_generate_trees()
-	_spawn_marker_blocks()
-	_spawn_bonus_items()
+				var placed := set_block(Vector3i(x, y, z), _block_for_depth(x, y, z, height, biome_id))
+				if placed:
+					block_list.append(Vector3i(x, y, z))
+
+	var tree_blocks := _generate_trees_in_chunk(coord, origin_x, origin_z)
+	block_list.append_array(tree_blocks)
+
+	if coord == Vector2i.ZERO:
+		var marker_blocks := _spawn_marker_blocks()
+		block_list.append_array(marker_blocks)
+		_spawn_bonus_items()
+
+	chunk_nodes[coord] = block_list
+
+func _unload_chunk(coord: Vector2i) -> void:
+	if not chunk_nodes.has(coord):
+		loaded_chunks.erase(coord)
+		return
+	var block_list: Array = chunk_nodes[coord]
+	for block_position in block_list:
+		remove_block(block_position)
+	chunk_nodes.erase(coord)
+	loaded_chunks.erase(coord)
 
 func _height_for_column(x: int, z: int, biome_id: String) -> int:
 	var wave := sin(float(x) * 0.31) + cos(float(z) * 0.27) + sin(float(x + z) * 0.14) + cos(float(x - z) * 0.10)
@@ -80,30 +150,50 @@ func _ore_for_depth(x: int, y: int, z: int) -> String:
 		return "voidstone_ore"
 	return ""
 
-func _generate_trees() -> void:
-	for key in height_map.keys():
-		var column: Vector2i = key
-		var biome_id := GameRegistry.biome_at(column.x, column.y)
-		if not GameRegistry.biome_allows_trees(biome_id):
-			continue
-		if column.x < 2 or column.y < 2 or column.x > WORLD_X - 3 or column.y > WORLD_Z - 3:
-			continue
-		if int(abs(sin(float(column.x * 71 + column.y * 97)) * 1000.0)) % 15 != 0:
-			continue
-		var ground_y := int(height_map[column])
-		for trunk_y in range(ground_y, ground_y + 4):
-			set_block(Vector3i(column.x, trunk_y, column.y), "oak_log")
-		for lx in range(-2, 3):
-			for lz in range(-2, 3):
-				if abs(lx) + abs(lz) <= 3:
-					set_block(Vector3i(column.x + lx, ground_y + 4, column.y + lz), "leaf_block")
-		set_block(Vector3i(column.x, ground_y + 5, column.y), "leaf_block")
+func _generate_trees_in_chunk(coord: Vector2i, origin_x: int, origin_z: int) -> Array[Vector3i]:
+	var placed: Array[Vector3i] = []
+	for lx in range(CHUNK_SIZE):
+		for lz in range(CHUNK_SIZE):
+			var x := origin_x + lx
+			var z := origin_z + lz
+			var column := Vector2i(x, z)
+			if not height_map.has(column):
+				continue
+			var biome_id := GameRegistry.biome_at(x, z)
+			if not GameRegistry.biome_allows_trees(biome_id):
+				continue
+			if int(abs(sin(float(x * 71 + z * 97)) * 1000.0)) % 15 != 0:
+				continue
+			var ground_y := int(height_map[column])
+			for trunk_y in range(ground_y, ground_y + 4):
+				var pos := Vector3i(x, trunk_y, z)
+				if set_block(pos, "oak_log"):
+					placed.append(pos)
+			for tlx in range(-2, 3):
+				for tlz in range(-2, 3):
+					if abs(tlx) + abs(tlz) <= 3:
+						var leaf_pos := Vector3i(x + tlx, ground_y + 4, z + tlz)
+						if set_block(leaf_pos, "leaf_block"):
+							placed.append(leaf_pos)
+			var top_pos := Vector3i(x, ground_y + 5, z)
+			if set_block(top_pos, "leaf_block"):
+				placed.append(top_pos)
+	return placed
 
-func _spawn_marker_blocks() -> void:
-	set_block(Vector3i(9, 7, 8), "workbench")
-	set_block(Vector3i(10, 7, 8), "kiln")
-	set_block(Vector3i(11, 7, 8), "chest")
-	set_block(Vector3i(12, 7, 8), "glow_core")
+func _spawn_marker_blocks() -> Array[Vector3i]:
+	var placed: Array[Vector3i] = []
+	var markers := [
+		[Vector3i(9, 7, 8), "workbench"],
+		[Vector3i(10, 7, 8), "kiln"],
+		[Vector3i(11, 7, 8), "chest"],
+		[Vector3i(12, 7, 8), "glow_core"]
+	]
+	for entry in markers:
+		var pos: Vector3i = entry[0]
+		var block_id: String = entry[1]
+		if set_block(pos, block_id):
+			placed.append(pos)
+	return placed
 
 func _spawn_bonus_items() -> void:
 	spawn_pickup("wood_pick", 1, Vector3(8.5, 8.5, 9.5))
@@ -120,15 +210,15 @@ func has_block(block_position: Vector3i) -> bool:
 func get_block_id(block_position: Vector3i) -> String:
 	return str(block_ids.get(block_position, GameRegistry.AIR))
 
-func set_block(block_position: Vector3i, block_id: String) -> void:
+func set_block(block_position: Vector3i, block_id: String) -> bool:
 	if block_id == GameRegistry.AIR or block_id == "":
 		remove_block(block_position)
-		return
+		return false
 	if blocks.has(block_position):
 		remove_block(block_position)
 	var block_data := GameRegistry.get_block(block_id)
 	if not bool(block_data.get("solid", true)):
-		return
+		return false
 	var body := StaticBody3D.new()
 	body.name = "Block_%s_%s_%s" % [block_position.x, block_position.y, block_position.z]
 	body.position = Vector3(block_position) * BLOCK_SIZE + Vector3.ONE * (BLOCK_SIZE * 0.5)
@@ -149,6 +239,7 @@ func set_block(block_position: Vector3i, block_id: String) -> void:
 	add_child(body)
 	blocks[block_position] = body
 	block_ids[block_position] = block_id
+	return true
 
 func remove_block(block_position: Vector3i) -> void:
 	if not blocks.has(block_position):
@@ -164,6 +255,10 @@ func break_block_from_collider(collider: Object) -> Dictionary:
 	var block_position: Vector3i = collider.get_meta("block_position")
 	var block_id := str(collider.get_meta("block_id"))
 	remove_block(block_position)
+	var coord := Vector2i(floori(float(block_position.x) / float(CHUNK_SIZE)), floori(float(block_position.z) / float(CHUNK_SIZE)))
+	if chunk_nodes.has(coord):
+		var list: Array = chunk_nodes[coord]
+		list.erase(block_position)
 	return {"drop": GameRegistry.block_drop(block_id), "block_id": block_id, "position": Vector3(block_position) + Vector3.ONE * 0.5}
 
 func place_block_from_hit(hit_position: Vector3, hit_normal: Vector3, block_id: String) -> bool:
@@ -174,8 +269,13 @@ func place_block_from_hit(hit_position: Vector3, hit_normal: Vector3, block_id: 
 		return false
 	if has_block(target):
 		return false
-	set_block(target, block_id)
-	return true
+	var placed := set_block(target, block_id)
+	if placed:
+		var coord := Vector2i(floori(float(target.x) / float(CHUNK_SIZE)), floori(float(target.z) / float(CHUNK_SIZE)))
+		if chunk_nodes.has(coord):
+			var list: Array = chunk_nodes[coord]
+			list.append(target)
+	return placed
 
 func spawn_pickup(item_id: String, amount: int, pos: Vector3) -> void:
 	var pickup := PickupItem.new()
